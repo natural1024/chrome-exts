@@ -1,0 +1,209 @@
+:root {
+  --fg: #202124;
+  --fg-muted: #5f6368;
+  --bg: #ffffff;
+  --bg-alt: #f8f9fa;
+  --border: #e0e0e0;
+  --hover: #f1f3f4;
+  --accent: #1a73e8;
+  --danger: #d93025;
+  --ok:     #188038;
+
+  --tag-direct: #8a8a8a;
+  --tag-system: #4a90e2;
+  --tag-fixed:  #2ecc71;
+  --tag-auto:   #e67e22;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: var(--fg);
+  background: var(--bg);
+}
+
+header {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-alt);
+}
+header h1 { margin: 0; font-size: 15px; }
+
+main {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: calc(100vh - 46px);
+}
+
+/* ---------- Sidebar ---------- */
+#sidebar {
+  border-right: 1px solid var(--border);
+  background: var(--bg-alt);
+  display: flex;
+  flex-direction: column;
+}
+.toolbar {
+  padding: 10px;
+  display: flex;
+  gap: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.toolbar button {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  background: white;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.toolbar button:hover { background: var(--hover); }
+
+.profile-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  overflow-y: auto;
+}
+.profile-list .item {
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 14px;
+  cursor: pointer;
+  user-select: none;
+}
+.profile-list .item:hover { background: var(--hover); }
+.profile-list .item.selected {
+  background: #e8f0fe;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.tag {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--tag-direct);
+  display: inline-block;
+  justify-self: center;
+}
+.tag-builtin_direct { background: var(--tag-direct); }
+.tag-builtin_system { background: var(--tag-system); }
+.tag-fixed          { background: var(--tag-fixed); }
+.tag-auto_switch    { background: var(--tag-auto); }
+
+/* ---------- Editor ---------- */
+#editor { padding: 20px; }
+.empty { color: var(--fg-muted); }
+.hidden { display: none !important; }
+
+form fieldset {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 14px 16px;
+  margin: 0 0 16px 0;
+}
+form legend {
+  padding: 0 6px;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 12px;
+  align-items: start;
+  margin-bottom: 10px;
+}
+.row > label {
+  padding-top: 6px;
+  color: var(--fg-muted);
+}
+.row .hint {
+  display: block;
+  font-size: 11px;
+  color: var(--fg-muted);
+  font-weight: 400;
+}
+
+input[type="text"], input[type="number"], select, textarea {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font: inherit;
+  background: white;
+}
+input[disabled] { background: var(--bg-alt); color: var(--fg-muted); }
+textarea { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+
+table.rules {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 8px;
+}
+table.rules th, table.rules td {
+  border: 1px solid var(--border);
+  padding: 4px 6px;
+  vertical-align: middle;
+}
+table.rules th {
+  background: var(--bg-alt);
+  font-weight: 600;
+  text-align: left;
+  color: var(--fg-muted);
+}
+table.rules td:last-child { width: 32px; text-align: center; }
+.btn-remove-rule {
+  border: none;
+  background: transparent;
+  color: var(--danger);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 4px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+button.primary,
+button[type="submit"] {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
+}
+button.primary:hover, button[type="submit"]:hover { filter: brightness(0.95); }
+
+#btn-delete {
+  background: white;
+  color: var(--danger);
+  border: 1px solid var(--border);
+  padding: 6px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+#btn-delete:hover { background: #fdecea; }
+
+#btn-add-rule {
+  padding: 4px 10px;
+  border: 1px dashed var(--border);
+  background: white;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--fg-muted);
+}
+#btn-add-rule:hover { background: var(--hover); }
+
+.msg { margin-top: 10px; font-size: 12px; min-height: 18px; }
+.msg.ok    { color: var(--ok); }
+.msg.error { color: var(--danger); }

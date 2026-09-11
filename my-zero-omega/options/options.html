@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>My Zero Omega — Options</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <header>
+    <h1>My Zero Omega — Options</h1>
+  </header>
+
+  <main>
+    <aside id="sidebar">
+      <div class="toolbar">
+        <button id="btn-new-fixed" type="button">+ Fixed Proxy</button>
+        <button id="btn-new-auto"  type="button">+ Auto Switch</button>
+      </div>
+      <ul id="profile-list" class="profile-list"></ul>
+    </aside>
+
+    <section id="editor">
+      <div class="empty" id="empty-hint">
+        Pick a profile on the left, or create a new one.
+      </div>
+      <form id="editor-form" class="hidden" autocomplete="off"></form>
+    </section>
+  </main>
+
+  <script type="module" src="options.js"></script>
+</body>
+</html>

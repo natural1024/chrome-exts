@@ -1,0 +1,22 @@
+{
+  "name": "my-zero-omega-vue3",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Vue 3 re-implementation of My Zero Omega (Chrome MV3 proxy switcher).",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "gen-icons": "python3 tools/gen-icons.py"
+  },
+  "dependencies": {
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@crxjs/vite-plugin": "^2.0.0-beta.25",
+    "@types/chrome": "^0.0.268",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "vite": "^5.4.8"
+  }
+}

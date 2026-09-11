@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "My Zero Omega",
+  "version": "0.1.0",
+  "description": "A simplified proxy switcher inspired by SwitchyOmega / Zero Omega.",
+  "minimum_chrome_version": "108",
+
+  "permissions": ["proxy", "storage"],
+
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "My Zero Omega",
+    "default_icon": {
+      "16":  "icons/icon16.png",
+      "32":  "icons/icon32.png",
+      "48":  "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+
+  "options_ui": {
+    "page": "options/options.html",
+    "open_in_tab": true
+  },
+
+  "icons": {
+    "16":  "icons/icon16.png",
+    "32":  "icons/icon32.png",
+    "48":  "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
