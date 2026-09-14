@@ -9,23 +9,32 @@
 //   *   → any sequence of characters
 //   ?   → any single character
 
+import {
+  AutoSwitchProfile,
+  FixedScheme,
+  Profile,
+  ProfileMap,
+  ProfileType,
+} from './constants';
+
 /**
  * Build a PAC script string for an auto-switch profile.
- *
- * @param {object} autoProfile        profile of type 'auto_switch'
- * @param {Record<string, object>} profilesById  all profiles keyed by id
- * @returns {string} PAC source
  */
-export function buildPacScript(autoProfile, profilesById) {
-  const compiled = (autoProfile.rules || [])
+export function buildPacScript(
+  autoProfile: AutoSwitchProfile,
+  profilesById: ProfileMap
+): string {
+  const compiled = (autoProfile.rules ?? [])
     .map(rule => ({
       re:    wildcardToRegexSource(rule.pattern),
       proxy: pacTargetFor(profilesById[rule.profileId]),
     }))
-    .filter(r => r.re && r.proxy !== null);
+    .filter((r): r is { re: string; proxy: string } =>
+      r.re !== '' && r.proxy !== null
+    );
 
   const fallback =
-    pacTargetFor(profilesById[autoProfile.defaultProfileId]) || 'DIRECT';
+    pacTargetFor(profilesById[autoProfile.defaultProfileId]) ?? 'DIRECT';
 
   // Embed table as JSON literal — avoids string escaping surprises.
   const tableLiteral    = JSON.stringify(compiled.map(r => [r.re, r.proxy]));
@@ -48,7 +57,7 @@ export function buildPacScript(autoProfile, profilesById) {
  * Convert a wildcard pattern to a *source string* for RegExp (no flags).
  * We emit a source string (not RegExp) so it survives JSON serialization.
  */
-export function wildcardToRegexSource(pattern) {
+export function wildcardToRegexSource(pattern: string): string {
   if (!pattern) return '';
   // Escape RegExp special chars except * and ?, then replace wildcards.
   const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
@@ -60,12 +69,12 @@ export function wildcardToRegexSource(pattern) {
  * Convert a profile into a PAC return value like "PROXY 1.2.3.4:8080; DIRECT",
  * or 'DIRECT' for pass-through, or null if unsupported (auto→auto etc).
  */
-function pacTargetFor(profile) {
+function pacTargetFor(profile: Profile | undefined): string | null {
   if (!profile) return null;
   switch (profile.type) {
-    case 'builtin_direct': return 'DIRECT';
-    case 'builtin_system': return 'DIRECT'; // PAC cannot express "system"; degrade to DIRECT
-    case 'fixed': {
+    case ProfileType.BUILTIN_DIRECT: return 'DIRECT';
+    case ProfileType.BUILTIN_SYSTEM: return 'DIRECT'; // PAC cannot express "system"; degrade to DIRECT
+    case ProfileType.FIXED: {
       const kw = pacKeywordFor(profile.scheme);
       return `${kw} ${profile.host}:${profile.port}; DIRECT`;
     }
@@ -75,7 +84,7 @@ function pacTargetFor(profile) {
   }
 }
 
-function pacKeywordFor(scheme) {
+function pacKeywordFor(scheme: FixedScheme): string {
   switch (scheme) {
     case 'http':   return 'PROXY';
     case 'https':  return 'HTTPS';

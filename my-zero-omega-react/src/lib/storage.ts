@@ -9,28 +9,34 @@
 // Built-in profiles are always re-seeded on load so a corrupted / partial
 // state cannot leave the user without "Direct" or "System".
 
-import { BUILTIN_PROFILES, STORAGE_KEY } from './constants.js';
+import {
+  AppState,
+  BUILTIN_PROFILES,
+  Profile,
+  ProfileMap,
+  STORAGE_KEY,
+} from './constants';
 
-const DEFAULT_STATE = {
+const DEFAULT_STATE: AppState = {
   activeProfileId: 'direct',
-  profiles: { ...BUILTIN_PROFILES },
+  profiles: { ...(BUILTIN_PROFILES as unknown as ProfileMap) },
 };
 
-export async function loadState() {
+export async function loadState(): Promise<AppState> {
   const raw = await chrome.storage.local.get(STORAGE_KEY);
-  const state = raw[STORAGE_KEY];
-  if (!state) return structuredClone(DEFAULT_STATE);
+  const stored = (raw as Record<string, AppState | undefined>)[STORAGE_KEY];
+  if (!stored) return structuredClone(DEFAULT_STATE);
 
   // Defensive: guarantee built-ins exist and haven't been mutated.
   for (const [id, p] of Object.entries(BUILTIN_PROFILES)) {
-    state.profiles[id] = { ...p };
+    stored.profiles[id] = { ...(p as Profile) };
   }
-  if (!state.profiles[state.activeProfileId]) {
-    state.activeProfileId = 'direct';
+  if (!stored.profiles[stored.activeProfileId]) {
+    stored.activeProfileId = 'direct';
   }
-  return state;
+  return stored;
 }
 
-export async function saveState(state) {
+export async function saveState(state: AppState): Promise<void> {
   await chrome.storage.local.set({ [STORAGE_KEY]: state });
 }

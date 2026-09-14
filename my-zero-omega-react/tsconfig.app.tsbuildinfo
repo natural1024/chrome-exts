@@ -1,0 +1,1 @@
+{"root":["./src/vite-env.d.ts","./src/background/background.ts","./src/lib/constants.ts","./src/lib/pac.ts","./src/lib/proxy.ts","./src/lib/rpc.ts","./src/lib/storage.ts","./src/options/options.tsx","./src/options/main.tsx","./src/popup/popup.tsx","./src/popup/main.tsx"],"version":"5.9.3"}

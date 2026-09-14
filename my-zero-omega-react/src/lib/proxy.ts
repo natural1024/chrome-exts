@@ -2,15 +2,13 @@
 // and provides a thin apply/clear API. Keeping this module pure (no message
 // handling, no badge) makes it easy to unit-test if we ever want to.
 
-import { ProfileType } from './constants.js';
-import { buildPacScript } from './pac.js';
+import { LevelOfControl, Profile, ProfileMap, ProfileType } from './constants';
+import { buildPacScript } from './pac';
 
-/**
- * @param {object} profile
- * @param {Record<string, object>} profilesById
- * @returns {chrome.proxy.ProxyConfig}
- */
-export function buildProxyConfig(profile, profilesById) {
+export function buildProxyConfig(
+  profile: Profile,
+  profilesById: ProfileMap
+): chrome.proxy.ProxyConfig {
   switch (profile.type) {
     case ProfileType.BUILTIN_DIRECT:
       return { mode: 'direct' };
@@ -27,7 +25,7 @@ export function buildProxyConfig(profile, profilesById) {
             host:   profile.host,
             port:   Number(profile.port),
           },
-          bypassList: profile.bypassList || [],
+          bypassList: profile.bypassList ?? [],
         },
       };
 
@@ -40,22 +38,32 @@ export function buildProxyConfig(profile, profilesById) {
         },
       };
 
-    default:
-      // Should never happen; be safe.
+    default: {
+      // Exhaustiveness check — if a new ProfileType is added and not handled
+      // above, TypeScript will fail this line.
+      const _exhaustive: never = profile;
+      void _exhaustive;
       return { mode: 'direct' };
+    }
   }
 }
 
 /**
  * Apply a ProxyConfig to Chrome's regular scope, and report who's in control.
- * @returns {Promise<'controlled_by_this_extension' | 'controllable_by_this_extension' | string>}
  */
-export async function applyProxyConfig(config) {
+export async function applyProxyConfig(
+  config: chrome.proxy.ProxyConfig
+): Promise<LevelOfControl> {
   await chrome.proxy.settings.set({ value: config, scope: 'regular' });
-  const cur = await chrome.proxy.settings.get({});
-  return cur.levelOfControl;
+  // @types/chrome types this as `void` on the callback-less overload, but at
+  // runtime Chrome returns the settings details as a Promise since MV3.
+  const cur = (await (chrome.proxy.settings.get({}) as unknown as Promise<{
+    levelOfControl: string;
+    value: unknown;
+  }>));
+  return cur.levelOfControl as LevelOfControl;
 }
 
-export async function clearProxy() {
+export async function clearProxy(): Promise<void> {
   await chrome.proxy.settings.clear({ scope: 'regular' });
 }

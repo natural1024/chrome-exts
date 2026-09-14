@@ -1,6 +1,23 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { MSG, ProfileType } from '../lib/constants.js';
-import { send } from '../lib/rpc.js';
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+import {
+  AppState,
+  AutoSwitchProfile,
+  AutoSwitchRule,
+  FixedProfile,
+  FixedScheme,
+  GetStateResponse,
+  MSG,
+  Profile,
+  ProfileMap,
+  ProfileType,
+} from '../lib/constants';
+import { send } from '../lib/rpc';
 
 // -----------------------------------------------------------------------------
 // Options page.
@@ -10,7 +27,7 @@ import { send } from '../lib/rpc.js';
 // -----------------------------------------------------------------------------
 
 // Built-ins first, then alphabetical by name.
-function profileOrder(a, b) {
+function profileOrder(a: Profile, b: Profile): number {
   const abt = a.type.startsWith('builtin') ? 0 : 1;
   const bbt = b.type.startsWith('builtin') ? 0 : 1;
   if (abt !== bbt) return abt - bbt;
@@ -19,11 +36,11 @@ function profileOrder(a, b) {
 
 // Same id shape as the vanilla version, so an existing chrome.storage.local
 // blob from the original extension would still round-trip cleanly.
-function uid(prefix) {
+function uid(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function makeFixedProfile() {
+function makeFixedProfile(): FixedProfile {
   return {
     id: uid('fixed'),
     name: 'New Proxy',
@@ -35,7 +52,7 @@ function makeFixedProfile() {
   };
 }
 
-function makeAutoProfile() {
+function makeAutoProfile(): AutoSwitchProfile {
   return {
     id: uid('auto'),
     name: 'Auto Switch',
@@ -45,7 +62,7 @@ function makeAutoProfile() {
   };
 }
 
-function validate(p, profiles) {
+function validate(p: Profile, profiles: ProfileMap): string | null {
   if (!p.name) return 'Name is required.';
   if (p.type === ProfileType.FIXED) {
     if (!p.host) return 'Host is required.';
@@ -54,7 +71,7 @@ function validate(p, profiles) {
   if (p.type === ProfileType.AUTO_SWITCH) {
     if (!p.defaultProfileId) return 'Default profile is required.';
     if (!profiles[p.defaultProfileId]) return 'Default profile no longer exists.';
-    for (const r of p.rules || []) {
+    for (const r of p.rules ?? []) {
       if (!r.pattern) return 'Rule pattern cannot be empty.';
       if (!profiles[r.profileId]) return `Rule targets a missing profile: ${r.profileId}`;
     }
@@ -63,16 +80,25 @@ function validate(p, profiles) {
 }
 
 // -----------------------------------------------------------------------------
+// Editor message banner
+// -----------------------------------------------------------------------------
+
+type MsgKind = '' | 'ok' | 'error';
+interface MsgState { text: string; kind: MsgKind }
+
+const EMPTY_MSG: MsgState = { text: '', kind: '' };
+
+// -----------------------------------------------------------------------------
 // Root
 // -----------------------------------------------------------------------------
 
 export default function Options() {
-  const [state, setState] = useState(null);
-  const [editing, setEditing] = useState(null);
-  const [msg, setMsg] = useState({ text: '', kind: '' });
+  const [state, setState] = useState<AppState | null>(null);
+  const [editing, setEditing] = useState<Profile | null>(null);
+  const [msg, setMsg] = useState<MsgState>(EMPTY_MSG);
 
   const refresh = useCallback(async () => {
-    const res = await send({ type: MSG.GET_STATE });
+    const res = await send<GetStateResponse>({ type: MSG.GET_STATE });
     setState(res.state);
     // Re-sync editor with latest storage IF editor is not a draft. Drafts are
     // in-flight objects the user hasn't saved yet — never overwrite them.
@@ -84,35 +110,40 @@ export default function Options() {
     });
   }, []);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => { void refresh(); }, [refresh]);
 
-  const startEditing = useCallback(profile => {
+  const startEditing = useCallback((profile: Profile) => {
     setEditing(structuredClone(profile));
-    setMsg({ text: '', kind: '' });
+    setMsg(EMPTY_MSG);
   }, []);
 
-  const onSubmit = async e => {
+  const onSubmit = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
+    if (!editing || !state) return;
     const err = validate(editing, state.profiles);
-    if (err) return setMsg({ text: err, kind: 'error' });
+    if (err) {
+      setMsg({ text: err, kind: 'error' });
+      return;
+    }
     try {
       await send({ type: MSG.SAVE_PROFILE, profile: editing });
       setMsg({ text: 'Saved.', kind: 'ok' });
       await refresh();
     } catch (e2) {
-      setMsg({ text: e2.message, kind: 'error' });
+      setMsg({ text: (e2 as Error).message, kind: 'error' });
     }
   };
 
-  const onDelete = async () => {
+  const onDelete = async (): Promise<void> => {
+    if (!editing) return;
     if (!confirm(`Delete profile "${editing.name}"?`)) return;
     try {
       await send({ type: MSG.DELETE_PROFILE, profileId: editing.id });
       setEditing(null);
-      setMsg({ text: '', kind: '' });
+      setMsg(EMPTY_MSG);
       await refresh();
     } catch (e2) {
-      setMsg({ text: e2.message, kind: 'error' });
+      setMsg({ text: (e2 as Error).message, kind: 'error' });
     }
   };
 
@@ -120,12 +151,15 @@ export default function Options() {
     return (
       <>
         <header><h1>My Zero Omega — Options</h1></header>
-        <main><aside className="sidebar" /><section className="editor"><div className="empty">Loading…</div></section></main>
+        <main>
+          <aside className="sidebar" />
+          <section className="editor"><div className="empty">Loading…</div></section>
+        </main>
       </>
     );
   }
 
-  const isDraft = editing && !state.profiles[editing.id];
+  const isDraft = editing !== null && !state.profiles[editing.id];
 
   return (
     <>
@@ -163,7 +197,15 @@ export default function Options() {
 // Sidebar
 // -----------------------------------------------------------------------------
 
-function Sidebar({ profiles, editingId, onNewFixed, onNewAuto, onPick }) {
+interface SidebarProps {
+  profiles:   ProfileMap;
+  editingId:  string | undefined;
+  onNewFixed: () => void;
+  onNewAuto:  () => void;
+  onPick:     (p: Profile) => void;
+}
+
+function Sidebar({ profiles, editingId, onNewFixed, onNewAuto, onPick }: SidebarProps) {
   const items = useMemo(
     () => Object.values(profiles).sort(profileOrder),
     [profiles]
@@ -195,14 +237,21 @@ function Sidebar({ profiles, editingId, onNewFixed, onNewAuto, onPick }) {
 // Editor
 // -----------------------------------------------------------------------------
 
-function Editor({ profile, profiles, isDraft, onChange, onSubmit, onDelete, msg }) {
+interface EditorProps {
+  profile:  Profile;
+  profiles: ProfileMap;
+  isDraft:  boolean;
+  onChange: (next: Profile) => void;
+  onSubmit: (e: FormEvent<HTMLFormElement>) => void;
+  onDelete: () => void;
+  msg:      MsgState;
+}
+
+function Editor({ profile, profiles, isDraft, onChange, onSubmit, onDelete, msg }: EditorProps) {
   const p = profile;
   const isBuiltin = p.type.startsWith('builtin');
   const isFixed   = p.type === ProfileType.FIXED;
   const isAuto    = p.type === ProfileType.AUTO_SWITCH;
-
-  // Immutably patch the editing draft.
-  const patch = update => onChange({ ...p, ...update });
 
   return (
     <form className="editor-form" autoComplete="off" onSubmit={onSubmit}>
@@ -213,7 +262,7 @@ function Editor({ profile, profiles, isDraft, onChange, onSubmit, onDelete, msg 
           value={p.name}
           disabled={isBuiltin}
           required
-          onChange={e => patch({ name: e.target.value })}
+          onChange={e => onChange({ ...p, name: e.target.value })}
         />
       </div>
       <div className="row">
@@ -221,8 +270,19 @@ function Editor({ profile, profiles, isDraft, onChange, onSubmit, onDelete, msg 
         <input type="text" value={p.type} disabled />
       </div>
 
-      {isFixed && <FixedFields profile={p} onChange={patch} />}
-      {isAuto  && <AutoFields  profile={p} profiles={profiles} onChange={patch} />}
+      {isFixed && (
+        <FixedFields
+          profile={p as FixedProfile}
+          onPatch={patch => onChange({ ...(p as FixedProfile), ...patch })}
+        />
+      )}
+      {isAuto && (
+        <AutoFields
+          profile={p as AutoSwitchProfile}
+          profiles={profiles}
+          onPatch={patch => onChange({ ...(p as AutoSwitchProfile), ...patch })}
+        />
+      )}
 
       <div className="actions">
         {!isBuiltin && <button type="submit" className="primary">Save</button>}
@@ -239,22 +299,28 @@ function Editor({ profile, profiles, isDraft, onChange, onSubmit, onDelete, msg 
 // Fixed Proxy fields
 // -----------------------------------------------------------------------------
 
-const FIXED_SCHEMES = ['http', 'https', 'socks5', 'socks4'];
+const FIXED_SCHEMES: FixedScheme[] = ['http', 'https', 'socks5', 'socks4'];
 
-function FixedFields({ profile, onChange }) {
+interface FixedFieldsProps {
+  profile: FixedProfile;
+  onPatch: (patch: Partial<FixedProfile>) => void;
+}
+
+function FixedFields({ profile, onPatch }: FixedFieldsProps) {
   const p = profile;
-  // Store bypassList as a newline-joined string while editing so caret /
-  // trailing-empty-line UX behaves naturally; we split on save via validate/
-  // submit path — actually we split here so `editing` always has array form
-  // matching the storage schema.
-  const bypassText = (p.bypassList || []).join('\n');
+  // We split bypassList on every keystroke so the `editing` object always has
+  // array form matching the storage schema.
+  const bypassText = (p.bypassList ?? []).join('\n');
 
   return (
     <fieldset>
       <legend>Fixed Proxy</legend>
       <div className="row">
         <label>Scheme</label>
-        <select value={p.scheme} onChange={e => onChange({ scheme: e.target.value })}>
+        <select
+          value={p.scheme}
+          onChange={e => onPatch({ scheme: e.target.value as FixedScheme })}
+        >
           {FIXED_SCHEMES.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
       </div>
@@ -265,18 +331,18 @@ function FixedFields({ profile, onChange }) {
           value={p.host}
           placeholder="127.0.0.1"
           required
-          onChange={e => onChange({ host: e.target.value })}
+          onChange={e => onPatch({ host: e.target.value })}
         />
       </div>
       <div className="row">
         <label>Port</label>
         <input
           type="number"
-          min="1"
-          max="65535"
+          min={1}
+          max={65535}
           value={p.port}
           required
-          onChange={e => onChange({ port: Number(e.target.value) })}
+          onChange={e => onPatch({ port: Number(e.target.value) })}
         />
       </div>
       <div className="row">
@@ -287,7 +353,7 @@ function FixedFields({ profile, onChange }) {
         <textarea
           rows={4}
           value={bypassText}
-          onChange={e => onChange({
+          onChange={e => onPatch({
             bypassList: e.target.value.split('\n').map(s => s.trim()).filter(Boolean),
           })}
         />
@@ -300,7 +366,13 @@ function FixedFields({ profile, onChange }) {
 // Auto Switch fields
 // -----------------------------------------------------------------------------
 
-function AutoFields({ profile, profiles, onChange }) {
+interface AutoFieldsProps {
+  profile:  AutoSwitchProfile;
+  profiles: ProfileMap;
+  onPatch:  (patch: Partial<AutoSwitchProfile>) => void;
+}
+
+function AutoFields({ profile, profiles, onPatch }: AutoFieldsProps) {
   const p = profile;
 
   // Only non-auto profiles can be a rule/default target — no auto→auto nesting.
@@ -313,20 +385,24 @@ function AutoFields({ profile, profiles, onChange }) {
 
   const firstNonAutoId = targets[0]?.id ?? 'direct';
 
-  const addRule = () => onChange({
-    rules: [
-      ...(p.rules || []),
-      { pattern: '*.example.com', profileId: firstNonAutoId, matchType: 'wildcard' },
-    ],
-  });
+  const addRule = (): void => {
+    const next: AutoSwitchRule = {
+      pattern: '*.example.com',
+      profileId: firstNonAutoId,
+      matchType: 'wildcard',
+    };
+    onPatch({ rules: [...(p.rules ?? []), next] });
+  };
 
-  const removeRule = i => onChange({
-    rules: (p.rules || []).filter((_, idx) => idx !== i),
-  });
+  const removeRule = (i: number): void => {
+    onPatch({ rules: (p.rules ?? []).filter((_, idx) => idx !== i) });
+  };
 
-  const updateRule = (i, patch) => onChange({
-    rules: (p.rules || []).map((r, idx) => idx === i ? { ...r, ...patch } : r),
-  });
+  const updateRule = (i: number, patch: Partial<AutoSwitchRule>): void => {
+    onPatch({
+      rules: (p.rules ?? []).map((r, idx) => idx === i ? { ...r, ...patch } : r),
+    });
+  };
 
   return (
     <fieldset>
@@ -338,7 +414,7 @@ function AutoFields({ profile, profiles, onChange }) {
         </label>
         <select
           value={p.defaultProfileId}
-          onChange={e => onChange({ defaultProfileId: e.target.value })}
+          onChange={e => onPatch({ defaultProfileId: e.target.value })}
         >
           {targets.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
@@ -354,7 +430,7 @@ function AutoFields({ profile, profiles, onChange }) {
               <tr><th>Pattern</th><th>Target Profile</th><th /></tr>
             </thead>
             <tbody>
-              {(p.rules || []).map((r, i) => (
+              {(p.rules ?? []).map((r, i) => (
                 <tr key={i}>
                   <td>
                     <input

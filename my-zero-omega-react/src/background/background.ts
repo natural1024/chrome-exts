@@ -7,26 +7,36 @@
 // The SW may be terminated by Chrome at any time — we never rely on
 // in-memory state. All truth lives in chrome.storage.local.
 
-import { MSG, ProfileType } from '../lib/constants.js';
-import { loadState, saveState } from '../lib/storage.js';
-import { buildProxyConfig, applyProxyConfig } from '../lib/proxy.js';
+import {
+  AnyRequest,
+  ApplyProfileResponse,
+  ErrResponse,
+  GetStateResponse,
+  LevelOfControl,
+  MSG,
+  Profile,
+  ProfileType,
+  SimpleOkResponse,
+} from '../lib/constants';
+import { loadState, saveState } from '../lib/storage';
+import { applyProxyConfig, buildProxyConfig } from '../lib/proxy';
 
 // -----------------------------------------------------------------------------
 // Badge helpers
 // -----------------------------------------------------------------------------
 
-async function updateBadge(profile) {
+async function updateBadge(profile: Profile): Promise<void> {
   await chrome.action.setBadgeText({ text: badgeLabel(profile) });
   await chrome.action.setBadgeBackgroundColor({ color: badgeColor(profile) });
   await chrome.action.setTitle({ title: `My Zero Omega: ${profile.name}` });
 }
 
-function badgeLabel(profile) {
+function badgeLabel(profile: Profile): string {
   // At most 4 chars fit; 2 keeps it readable on all display densities.
   return profile.name.slice(0, 2).toUpperCase();
 }
 
-function badgeColor(profile) {
+function badgeColor(profile: Profile): string {
   switch (profile.type) {
     case ProfileType.BUILTIN_DIRECT: return '#8a8a8a';
     case ProfileType.BUILTIN_SYSTEM: return '#4a90e2';
@@ -40,7 +50,12 @@ function badgeColor(profile) {
 // Core: apply a profile by id
 // -----------------------------------------------------------------------------
 
-async function applyProfile(profileId) {
+interface ApplyResult {
+  profile:        Profile;
+  levelOfControl: LevelOfControl;
+}
+
+async function applyProfile(profileId: string): Promise<ApplyResult> {
   const state   = await loadState();
   const profile = state.profiles[profileId];
   if (!profile) throw new Error(`Profile not found: ${profileId}`);
@@ -59,35 +74,52 @@ async function applyProfile(profileId) {
 // Lifecycle: sync from storage on install / browser startup
 // -----------------------------------------------------------------------------
 
-async function syncFromStorage() {
+async function syncFromStorage(): Promise<void> {
   const state  = await loadState();
-  const active = state.profiles[state.activeProfileId] || state.profiles.direct;
+  const active = state.profiles[state.activeProfileId] ?? state.profiles['direct']!;
   const config = buildProxyConfig(active, state.profiles);
   await applyProxyConfig(config);
   await updateBadge(active);
 }
 
-chrome.runtime.onInstalled.addListener(() => { syncFromStorage(); });
-chrome.runtime.onStartup.addListener(()   => { syncFromStorage(); });
+chrome.runtime.onInstalled.addListener(() => { void syncFromStorage(); });
+chrome.runtime.onStartup.addListener(()   => { void syncFromStorage(); });
 
 // -----------------------------------------------------------------------------
 // RPC router
 // -----------------------------------------------------------------------------
 
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  // sendResponse must be called asynchronously → wrap and return true.
-  handleMessage(msg)
-    .then(res => sendResponse(res))
-    .catch(err => sendResponse({ ok: false, error: String(err?.message || err) }));
-  return true;
-});
+type AnyResponse =
+  | GetStateResponse
+  | ApplyProfileResponse
+  | SimpleOkResponse
+  | ErrResponse;
 
-async function handleMessage(msg) {
-  switch (msg?.type) {
+chrome.runtime.onMessage.addListener(
+  (msg: AnyRequest, _sender, sendResponse: (r: AnyResponse) => void) => {
+    // sendResponse must be called asynchronously → wrap and return true.
+    handleMessage(msg)
+      .then(res => sendResponse(res))
+      .catch(err => sendResponse({
+        ok: false,
+        error: String((err as Error)?.message ?? err),
+      }));
+    return true;
+  }
+);
+
+async function handleMessage(msg: AnyRequest): Promise<AnyResponse> {
+  switch (msg.type) {
     case MSG.GET_STATE: {
       const state   = await loadState();
-      const setting = await chrome.proxy.settings.get({});
-      return { ok: true, state, levelOfControl: setting.levelOfControl };
+      const setting = (await (chrome.proxy.settings.get({}) as unknown as Promise<{
+        levelOfControl: string;
+      }>));
+      return {
+        ok: true,
+        state,
+        levelOfControl: setting.levelOfControl as LevelOfControl,
+      };
     }
 
     case MSG.APPLY_PROFILE: {
@@ -127,7 +159,7 @@ async function handleMessage(msg) {
       for (const p of Object.values(state.profiles)) {
         if (p.type !== ProfileType.AUTO_SWITCH) continue;
         if (p.defaultProfileId === msg.profileId) p.defaultProfileId = 'direct';
-        p.rules = (p.rules || []).filter(r => r.profileId !== msg.profileId);
+        p.rules = (p.rules ?? []).filter(r => r.profileId !== msg.profileId);
       }
 
       if (state.activeProfileId === msg.profileId) {
@@ -136,7 +168,6 @@ async function handleMessage(msg) {
         await applyProfile('direct');
       } else {
         await saveState(state);
-        // If active is auto_switch, refresh PAC in case its rules changed.
         const active = state.profiles[state.activeProfileId];
         if (active?.type === ProfileType.AUTO_SWITCH) {
           await applyProfile(state.activeProfileId);
@@ -145,7 +176,11 @@ async function handleMessage(msg) {
       return { ok: true };
     }
 
-    default:
-      return { ok: false, error: `Unknown message type: ${msg?.type}` };
+    default: {
+      // Exhaustiveness — a new MSG type must be handled above.
+      const _exhaustive: never = msg;
+      void _exhaustive;
+      return { ok: false, error: `Unknown message type` };
+    }
   }
 }

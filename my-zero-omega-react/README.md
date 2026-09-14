@@ -1,6 +1,6 @@
-# My Zero Omega (React)
+# My Zero Omega (React + TypeScript)
 
-A React re-implementation of [`my-zero-omega`](../my-zero-omega) — a Manifest V3 Chrome extension inspired by SwitchyOmega / Zero Omega. Same features, same data model, same PAC-based auto-switch — the only difference is that the popup and options UIs are built with React 18 + Vite instead of vanilla DOM.
+A React + **TypeScript** re-implementation of [`my-zero-omega`](../my-zero-omega) — a Manifest V3 Chrome extension inspired by SwitchyOmega / Zero Omega. Same features, same data model, same PAC-based auto-switch — the only difference is that the popup and options UIs are built with React 18 + Vite instead of vanilla DOM, and every module (background service worker, `lib/`, popup, options, manifest, vite config) is strictly typed.
 
 ## Features
 
@@ -42,7 +42,7 @@ This starts Vite with `@crxjs/vite-plugin`, which builds the extension into `dis
 npm run build
 ```
 
-Produces a self-contained MV3 extension in `dist/` — ready to zip and upload, or to load unpacked.
+Produces a self-contained MV3 extension in `dist/` — ready to zip and upload, or to load unpacked. `npm run build` runs `tsc -b` first, so any type error fails the build. For a fast type-only check without emitting anything, run `npm run typecheck`.
 
 ## Regenerating icons
 
@@ -55,26 +55,30 @@ Stdlib-only Python — no Pillow required. Emits `icons/icon{16,32,48,128}.png`.
 ## Layout
 
 ```
-manifest.config.js       @crxjs manifest source — compiled into dist/manifest.json
-vite.config.js           React + @crxjs plugin wiring
+tsconfig.json            Solution file — references app + node projects
+tsconfig.app.json        Strict TS config for src/ (DOM + chrome + JSX)
+tsconfig.node.json       Config for vite.config.ts + manifest.config.ts
+manifest.config.ts       @crxjs manifest source — compiled into dist/manifest.json
+vite.config.ts           React + @crxjs plugin wiring
 src/
+  vite-env.d.ts          Triple-slash refs for vite/client + @types/chrome
   background/
-    background.js        Service worker: RPC router, applyProfile(), badge sync
+    background.ts        Service worker: RPC router, applyProfile(), badge sync
   lib/
-    constants.js         ProfileType enum, MSG names, STORAGE_KEY
-    storage.js           chrome.storage.local wrapper (built-ins re-seeded on load)
-    proxy.js             Profile -> chrome.proxy ProxyConfig; applyProxyConfig()
-    pac.js               Auto-switch profile -> PAC source string
-    rpc.js               Promise wrapper around chrome.runtime.sendMessage
+    constants.ts         Profile discriminated union + MSG + typed request/response
+    storage.ts           chrome.storage.local wrapper (built-ins re-seeded on load)
+    proxy.ts             Profile -> chrome.proxy ProxyConfig; applyProxyConfig()
+    pac.ts               Auto-switch profile -> PAC source string
+    rpc.ts               Generic-typed promise wrapper around sendMessage
   popup/
     index.html
-    main.jsx             React entry
-    Popup.jsx            Popup UI (single component)
+    main.tsx             React entry
+    Popup.tsx            Popup UI (single component)
     popup.css
   options/
     index.html
-    main.jsx             React entry
-    Options.jsx          Options UI (sidebar + editor)
+    main.tsx             React entry
+    Options.tsx          Options UI (sidebar + editor)
     options.css
 tools/gen-icons.py       Stdlib-only icon generator
 icons/                   Generated PNGs (16 / 32 / 48 / 128)
@@ -110,7 +114,7 @@ Because the schema and storage key are the same, this extension can pick up an e
 
 ## How auto-switch works
 
-Chrome's `chrome.proxy` API accepts a PAC (Proxy Auto-Config) script as an opaque string that runs in a native sandbox — it cannot access `chrome.storage` or any extension API. So `src/lib/pac.js` compiles the rule table into a JS literal embedded directly in the PAC source:
+Chrome's `chrome.proxy` API accepts a PAC (Proxy Auto-Config) script as an opaque string that runs in a native sandbox — it cannot access `chrome.storage` or any extension API. So `src/lib/pac.ts` compiles the rule table into a JS literal embedded directly in the PAC source:
 
 ```js
 var __rules    = [ ["^.*\\.google\\.com$", "PROXY 1.2.3.4:8080; DIRECT"], ... ];

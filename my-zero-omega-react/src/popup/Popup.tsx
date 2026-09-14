@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react';
-import { MSG } from '../lib/constants.js';
-import { send } from '../lib/rpc.js';
+import {
+  AppState,
+  ApplyProfileResponse,
+  GetStateResponse,
+  LevelOfControl,
+  MSG,
+  Profile,
+} from '../lib/constants';
+import { send } from '../lib/rpc';
 
 // -----------------------------------------------------------------------------
 // Toolbar popup — mirrors the vanilla popup.js UX exactly:
@@ -13,14 +20,14 @@ import { send } from '../lib/rpc.js';
 
 // Chrome internal pages cannot be reloaded by extensions; a call throws.
 // We just skip them so the profile-switch itself never fails.
-function isInternalUrl(url) {
+function isInternalUrl(url: string | undefined): boolean {
   if (!url) return true;
   return /^(chrome|chrome-extension|edge|about|devtools|view-source):/i.test(url);
 }
 
-async function reloadActiveTab() {
+async function reloadActiveTab(): Promise<void> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab || !tab.id) return;
+  if (!tab || tab.id === undefined) return;
   if (isInternalUrl(tab.url)) return;
   try {
     await chrome.tabs.reload(tab.id, { bypassCache: false });
@@ -30,7 +37,7 @@ async function reloadActiveTab() {
 }
 
 // Built-ins first, then alphabetical by name.
-function profileOrder(a, b) {
+function profileOrder(a: Profile, b: Profile): number {
   const abt = a.type.startsWith('builtin') ? 0 : 1;
   const bbt = b.type.startsWith('builtin') ? 0 : 1;
   if (abt !== bbt) return abt - bbt;
@@ -38,30 +45,32 @@ function profileOrder(a, b) {
 }
 
 export default function Popup() {
-  const [state, setState] = useState(null);
-  const [levelOfControl, setLevelOfControl] = useState(null);
-  const [error, setError] = useState(null);
+  const [state, setState] = useState<AppState | null>(null);
+  const [levelOfControl, setLevelOfControl] = useState<LevelOfControl | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
-    send({ type: MSG.GET_STATE })
+    send<GetStateResponse>({ type: MSG.GET_STATE })
       .then(res => {
         if (!alive) return;
         setState(res.state);
         setLevelOfControl(res.levelOfControl);
       })
-      .catch(err => alive && setError(err.message));
+      .catch((err: Error) => {
+        if (alive) setError(err.message);
+      });
     return () => { alive = false; };
   }, []);
 
-  async function onPick(profileId) {
+  async function onPick(profileId: string): Promise<void> {
     try {
-      await send({ type: MSG.APPLY_PROFILE, profileId });
+      await send<ApplyProfileResponse>({ type: MSG.APPLY_PROFILE, profileId });
       await reloadActiveTab();
       // Close the popup so the reloaded page takes focus — feels snappier.
       window.close();
     } catch (err) {
-      alert(`Failed to apply profile: ${err.message}`);
+      alert(`Failed to apply profile: ${(err as Error).message}`);
     }
   }
 
