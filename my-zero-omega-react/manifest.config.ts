@@ -19,7 +19,7 @@ export default defineManifest({
   description: 'A simplified proxy switcher inspired by SwitchyOmega / Zero Omega. React edition.',
   minimum_chrome_version: '108',
 
-  permissions: ['proxy', 'storage'],
+  permissions: ['proxy', 'storage', 'tabs'],
 
   background: {
     service_worker: 'src/background/background.ts',
